@@ -71,6 +71,7 @@
     </section>
   </main>
 
+  <!-- Nuova incordatura -->
   <dialog id="stringingDialog">
     <form id="stringingForm" method="dialog" class="dialog-card">
       <div class="dialog-head">
@@ -106,6 +107,46 @@
     </form>
   </dialog>
 
+  <!-- Modifica incordatura -->
+  <dialog id="editStringingDialog">
+    <form id="editStringingForm" method="dialog" class="dialog-card">
+      <div class="dialog-head">
+        <h2>Modifica incordatura</h2>
+        <button class="icon-btn" value="cancel" aria-label="Chiudi">×</button>
+      </div>
+
+      <input id="editStringingId" type="hidden" />
+
+      <label>Data incordatura
+        <input id="editStringDate" type="date" required />
+      </label>
+
+      <label>Corda
+        <input id="editStringName" type="text" required />
+      </label>
+
+      <div class="two-col">
+        <label>Calibro
+          <input id="editGauge" type="text" />
+        </label>
+        <label>Tensione
+          <input id="editTension" type="text" />
+        </label>
+      </div>
+
+      <label id="editBrokenDateWrap">Data rottura
+        <input id="editBrokenDate" type="date" />
+      </label>
+
+      <label>Note
+        <textarea id="editNotes" rows="3"></textarea>
+      </label>
+
+      <button class="primary wide" type="submit">Salva modifiche</button>
+    </form>
+  </dialog>
+
+  <!-- Aggiunta ore -->
   <dialog id="hoursDialog">
     <form id="hoursForm" method="dialog" class="dialog-card">
       <div class="dialog-head">
@@ -119,7 +160,7 @@
         <div class="duration-row">
           <input id="playHours" type="number" min="0" max="24" step="1" value="1" required />
           <span>ore</span>
-          <input id="playMinutes" type="number" min="0" max="59" step="5" value="0" required />
+          <input id="playMinutes" type="number" min="0" max="59" step="1" value="0" required />
           <span>min</span>
         </div>
       </label>
@@ -130,6 +171,39 @@
     </form>
   </dialog>
 
+  <!-- Modifica sessione -->
+  <dialog id="editSessionDialog">
+    <form id="editSessionForm" method="dialog" class="dialog-card">
+      <div class="dialog-head">
+        <h2>Modifica ore di gioco</h2>
+        <button class="icon-btn" value="cancel" aria-label="Chiudi">×</button>
+      </div>
+
+      <input id="editSessionStringingId" type="hidden" />
+      <input id="editSessionIndex" type="hidden" />
+
+      <label>Data
+        <input id="editPlayDate" type="date" required />
+      </label>
+
+      <label>Durata
+        <div class="duration-row">
+          <input id="editPlayHours" type="number" min="0" max="24" step="1" required />
+          <span>ore</span>
+          <input id="editPlayMinutes" type="number" min="0" max="59" step="1" required />
+          <span>min</span>
+        </div>
+      </label>
+
+      <label>Note
+        <input id="editPlayNotes" type="text" />
+      </label>
+
+      <button class="primary wide" type="submit">Salva correzione</button>
+    </form>
+  </dialog>
+
+  <!-- Corda rotta -->
   <dialog id="breakDialog">
     <form id="breakForm" method="dialog" class="dialog-card">
       <div class="dialog-head">
@@ -144,6 +218,7 @@
     </form>
   </dialog>
 
+  <!-- Nomi racchette -->
   <dialog id="racketsDialog">
     <form id="racketsForm" method="dialog" class="dialog-card">
       <div class="dialog-head">

@@ -1,4 +1,4 @@
-const CACHE = "stringlog-v2";
+const CACHE = "stringlog-v3";
 const ASSETS = [
   "./",
   "./index.html",
@@ -26,8 +26,6 @@ self.addEventListener("activate", event => {
 self.addEventListener("fetch", event => {
   if(event.request.method !== "GET") return;
 
-  // Per le pagine HTML preferiamo la rete: così gli aggiornamenti GitHub
-  // arrivano subito. Se manca internet, usiamo la copia offline.
   if(event.request.mode === "navigate"){
     event.respondWith(
       fetch(event.request)
@@ -41,7 +39,6 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  // Per gli altri file: prova rete, aggiorna la cache, altrimenti usa offline.
   event.respondWith(
     fetch(event.request)
       .then(response => {

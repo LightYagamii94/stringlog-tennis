@@ -10,7 +10,7 @@ const today = () => new Date().toISOString().slice(0,10);
 
 function defaultState(){
   return {
-    version: 2,
+    version: 3,
     selectedRacketId: "r1",
     rackets: [
       { id: "r1", name: "Racchetta 1" },
@@ -20,22 +20,40 @@ function defaultState(){
   };
 }
 
+function normalizeState(data){
+  const out = data || defaultState();
+  out.version = 3;
+  if(!Array.isArray(out.rackets) || out.rackets.length < 2){
+    out.rackets = defaultState().rackets;
+  }
+  if(!Array.isArray(out.stringings)) out.stringings = [];
+  out.stringings.forEach(s => {
+    if(!s.racketId) s.racketId = "r1";
+    if(!Array.isArray(s.sessions)) s.sessions = [];
+    if(!("notes" in s)) s.notes = "";
+    s.sessions.forEach(sess => {
+      if(!("notes" in sess)) sess.notes = "";
+    });
+  });
+  return out;
+}
+
 function loadData(){
   try{
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if(parsed && Array.isArray(parsed.rackets) && Array.isArray(parsed.stringings)){
-      return parsed;
+    if(parsed && Array.isArray(parsed.stringings)){
+      return normalizeState(parsed);
     }
   }catch(e){}
 
-  // Migrazione automatica dalla prima versione, se esiste.
   try{
     const old = JSON.parse(localStorage.getItem(OLD_STORAGE_KEY));
     if(old && Array.isArray(old.stringings)){
       const migrated = defaultState();
       migrated.stringings = old.stringings.map(s => ({
         ...s,
-        racketId: "r1"
+        racketId: "r1",
+        sessions: Array.isArray(s.sessions) ? s.sessions : []
       }));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
       return migrated;
@@ -46,6 +64,7 @@ function loadData(){
 }
 
 function saveData(){
+  state.version = 3;
   state.selectedRacketId = selectedRacketId;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   render();
@@ -61,6 +80,10 @@ function stringingsFor(racketId){
 
 function activeStringing(racketId = selectedRacketId){
   return state.stringings.find(s => s.racketId === racketId && !s.brokenDate) || null;
+}
+
+function findStringing(id){
+  return state.stringings.find(s => s.id === id) || null;
 }
 
 function totalHours(s){
@@ -81,6 +104,15 @@ function formatHours(hours){
   if(h && m) return `${h}h ${m}m`;
   if(h) return `${h}h`;
   return `${m}m`;
+}
+
+function hoursToParts(value){
+  const total = Math.round(Number(value || 0) * 60);
+  return {h: Math.floor(total / 60), m: total % 60};
+}
+
+function partsToHours(h, m){
+  return Number(h || 0) + Number(m || 0) / 60;
 }
 
 function escapeHtml(value){
@@ -123,6 +155,36 @@ function renderRackets(){
   });
 }
 
+function sessionHtml(stringing, session, index, showDelete = true){
+  return `
+    <div class="session">
+      <div class="session-main">
+        <span>${formatDate(session.date)} · <strong>${formatHours(session.hours)}</strong></span>
+        ${session.notes ? `<small>${escapeHtml(session.notes)}</small>` : ""}
+      </div>
+      <div></div>
+      <div class="session-actions">
+        <button class="mini-btn edit-session" type="button"
+          data-stringing-id="${stringing.id}" data-session-index="${index}">Modifica</button>
+        ${showDelete ? `<button class="mini-btn delete delete-session" type="button"
+          data-stringing-id="${stringing.id}" data-session-index="${index}">Elimina</button>` : ""}
+      </div>
+    </div>`;
+}
+
+function bindSessionButtons(scope = document){
+  scope.querySelectorAll(".edit-session").forEach(btn => {
+    btn.addEventListener("click", () => {
+      openEditSessionDialog(btn.dataset.stringingId, Number(btn.dataset.sessionIndex));
+    });
+  });
+  scope.querySelectorAll(".delete-session").forEach(btn => {
+    btn.addEventListener("click", () => {
+      deleteSession(btn.dataset.stringingId, Number(btn.dataset.sessionIndex));
+    });
+  });
+}
+
 function renderActive(){
   const holder = $("activeCard");
   const current = activeStringing();
@@ -133,11 +195,10 @@ function renderActive(){
   }
 
   const hours = totalHours(current);
-  const sessions = (current.sessions || []).slice().reverse().map(s => `
-    <div class="session">
-      <span>${formatDate(s.date)}${s.notes ? " · "+escapeHtml(s.notes) : ""}</span>
-      <strong>${formatHours(s.hours)}</strong>
-    </div>`).join("");
+  const sessions = (current.sessions || []).map((s, index) => ({...s, _index:index}))
+    .reverse()
+    .map(s => sessionHtml(current, s, s._index))
+    .join("");
 
   holder.innerHTML = `
     <article class="active-card">
@@ -161,18 +222,26 @@ function renderActive(){
 
       <div class="actions">
         <button id="addHoursBtn" class="primary" type="button">+ Aggiungi ore</button>
+        <button id="editActiveBtn" class="ghost" type="button">Modifica</button>
         <button id="markBrokenBtn" class="ghost" type="button">Corda rotta</button>
+      </div>
+      <div class="secondary-actions">
+        <button id="deleteActiveBtn" class="soft-danger" type="button">Elimina incordatura</button>
+        <span></span>
       </div>
 
       ${(current.sessions || []).length ? `
       <div class="session-list">
-        <h4>Ultime sessioni</h4>
+        <h4>Sessioni di gioco — puoi correggerle in qualsiasi momento</h4>
         ${sessions}
       </div>` : ""}
     </article>`;
 
   $("addHoursBtn").addEventListener("click", openHoursDialog);
+  $("editActiveBtn").addEventListener("click", () => openEditStringingDialog(current.id));
   $("markBrokenBtn").addEventListener("click", openBreakDialog);
+  $("deleteActiveBtn").addEventListener("click", () => deleteStringing(current.id));
+  bindSessionButtons(holder);
 }
 
 function renderHistory(){
@@ -185,21 +254,43 @@ function renderHistory(){
     return;
   }
 
-  $("historyList").innerHTML = history.map(s => `
-    <article class="history-item">
-      <div class="history-top">
-        <div>
-          <h3>${escapeHtml(s.stringName)}</h3>
-          <p>${formatDate(s.date)} → ${formatDate(s.brokenDate)}</p>
+  $("historyList").innerHTML = history.map(s => {
+    const sessions = (s.sessions || []).map((session,index) => sessionHtml(s, session, index)).join("");
+    return `
+      <article class="history-item">
+        <div class="history-top">
+          <div>
+            <h3>${escapeHtml(s.stringName)}</h3>
+            <p>${formatDate(s.date)} → ${formatDate(s.brokenDate)}</p>
+          </div>
+          <div class="history-hours">${formatHours(totalHours(s))}</div>
         </div>
-        <div class="history-hours">${formatHours(totalHours(s))}</div>
-      </div>
-      <div class="history-meta">
-        ${s.gauge ? `<span class="chip">${escapeHtml(s.gauge)}</span>` : ""}
-        ${s.tension ? `<span class="chip">${escapeHtml(s.tension)}</span>` : ""}
-        <span class="chip">${(s.sessions || []).length} sessioni</span>
-      </div>
-    </article>`).join("");
+        <div class="history-meta">
+          ${s.gauge ? `<span class="chip">${escapeHtml(s.gauge)}</span>` : ""}
+          ${s.tension ? `<span class="chip">${escapeHtml(s.tension)}</span>` : ""}
+          <span class="chip">${(s.sessions || []).length} sessioni</span>
+        </div>
+        <div class="history-actions">
+          <button class="mini-btn edit-history" data-id="${s.id}" type="button">Modifica</button>
+          <button class="mini-btn delete delete-history" data-id="${s.id}" type="button">Elimina</button>
+        </div>
+        ${(s.sessions || []).length ? `
+          <details class="history-sessions">
+            <summary>Mostra / correggi sessioni di gioco</summary>
+            ${sessions}
+          </details>` : ""}
+      </article>`;
+  }).join("");
+
+  document.querySelectorAll(".edit-history").forEach(btn => {
+    btn.addEventListener("click", () => openEditStringingDialog(btn.dataset.id));
+  });
+
+  document.querySelectorAll(".delete-history").forEach(btn => {
+    btn.addEventListener("click", () => deleteStringing(btn.dataset.id));
+  });
+
+  bindSessionButtons($("historyList"));
 }
 
 function renderStats(){
@@ -223,6 +314,24 @@ function openStringingDialog(){
   $("stringingDialog").showModal();
 }
 
+function openEditStringingDialog(id){
+  const s = findStringing(id);
+  if(!s) return;
+
+  $("editStringingId").value = s.id;
+  $("editStringDate").value = s.date || today();
+  $("editStringName").value = s.stringName || "";
+  $("editGauge").value = s.gauge || "";
+  $("editTension").value = s.tension || "";
+  $("editNotes").value = s.notes || "";
+  $("editBrokenDate").value = s.brokenDate || "";
+
+  const isClosed = Boolean(s.brokenDate);
+  $("editBrokenDateWrap").classList.toggle("hidden", !isClosed);
+
+  $("editStringingDialog").showModal();
+}
+
 function openHoursDialog(){
   $("hoursForm").reset();
   $("playDate").value = today();
@@ -231,10 +340,54 @@ function openHoursDialog(){
   $("hoursDialog").showModal();
 }
 
+function openEditSessionDialog(stringingId, index){
+  const s = findStringing(stringingId);
+  const session = s?.sessions?.[index];
+  if(!s || !session) return;
+
+  const parts = hoursToParts(session.hours);
+  $("editSessionStringingId").value = stringingId;
+  $("editSessionIndex").value = String(index);
+  $("editPlayDate").value = session.date || today();
+  $("editPlayHours").value = parts.h;
+  $("editPlayMinutes").value = parts.m;
+  $("editPlayNotes").value = session.notes || "";
+  $("editSessionDialog").showModal();
+}
+
 function openBreakDialog(){
   $("breakForm").reset();
   $("breakDate").value = today();
   $("breakDialog").showModal();
+}
+
+function deleteStringing(id){
+  const s = findStringing(id);
+  if(!s) return;
+
+  const label = s.brokenDate ? "questa incordatura dallo storico" : "l'incordatura attiva";
+  if(!confirm(`Eliminare ${label}? Verranno eliminate anche tutte le ore di gioco associate. Questa operazione non può essere annullata.`)){
+    return;
+  }
+
+  const idx = state.stringings.findIndex(x => x.id === id);
+  if(idx >= 0){
+    state.stringings.splice(idx,1);
+    saveData();
+  }
+}
+
+function deleteSession(stringingId, index){
+  const s = findStringing(stringingId);
+  const session = s?.sessions?.[index];
+  if(!s || !session) return;
+
+  if(!confirm(`Eliminare la sessione di ${formatHours(session.hours)} del ${formatDate(session.date)}?`)){
+    return;
+  }
+
+  s.sessions.splice(index,1);
+  saveData();
 }
 
 $("newStringingBtn").addEventListener("click", openStringingDialog);
@@ -257,21 +410,65 @@ $("stringingForm").addEventListener("submit", (e) => {
   saveData();
 });
 
+$("editStringingForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const s = findStringing($("editStringingId").value);
+  if(!s) return;
+
+  s.date = $("editStringDate").value;
+  s.stringName = $("editStringName").value.trim();
+  s.gauge = $("editGauge").value.trim();
+  s.tension = $("editTension").value.trim();
+  s.notes = $("editNotes").value.trim();
+
+  if(s.brokenDate){
+    s.brokenDate = $("editBrokenDate").value || s.brokenDate;
+  }
+
+  $("editStringingDialog").close();
+  saveData();
+});
+
 $("hoursForm").addEventListener("submit", (e) => {
   e.preventDefault();
   const current = activeStringing();
   if(!current) return;
-  const hours = Number($("playHours").value || 0) + Number($("playMinutes").value || 0)/60;
+
+  const hours = partsToHours($("playHours").value, $("playMinutes").value);
   if(hours <= 0){
     alert("Inserisci una durata maggiore di zero.");
     return;
   }
+
   current.sessions.push({
     date: $("playDate").value,
     hours,
     notes: $("playNotes").value.trim()
   });
+
   $("hoursDialog").close();
+  saveData();
+});
+
+$("editSessionForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+
+  const s = findStringing($("editSessionStringingId").value);
+  const index = Number($("editSessionIndex").value);
+  const session = s?.sessions?.[index];
+  if(!s || !session) return;
+
+  const hours = partsToHours($("editPlayHours").value, $("editPlayMinutes").value);
+  if(hours <= 0){
+    alert("Inserisci una durata maggiore di zero.");
+    return;
+  }
+
+  session.date = $("editPlayDate").value;
+  session.hours = hours;
+  session.notes = $("editPlayNotes").value.trim();
+
+  $("editSessionDialog").close();
   saveData();
 });
 
@@ -304,7 +501,7 @@ $("racketsForm").addEventListener("submit", (e) => {
 $("exportBtn").addEventListener("click", () => {
   const payload = {
     app: "StringLog Tennis",
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
     data: state
   };
@@ -329,10 +526,16 @@ $("importInput").addEventListener("change", async (event) => {
     const incoming = parsed?.data?.stringings ? parsed.data : parsed;
     if(!incoming || !Array.isArray(incoming.stringings)) throw new Error("Formato non valido");
 
-    let normalized = incoming;
-    if(!Array.isArray(incoming.rackets)){
+    let normalized;
+    if(Array.isArray(incoming.rackets)){
+      normalized = normalizeState(incoming);
+    }else{
       normalized = defaultState();
-      normalized.stringings = incoming.stringings.map(s => ({...s, racketId: "r1"}));
+      normalized.stringings = incoming.stringings.map(s => ({
+        ...s,
+        racketId: "r1",
+        sessions: Array.isArray(s.sessions) ? s.sessions : []
+      }));
     }
 
     if(!confirm("Ripristinare questo backup? I dati attuali verranno sostituiti.")) return;
