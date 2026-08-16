@@ -22,6 +22,17 @@
   </header>
 
   <main class="container">
+    <section class="racket-section">
+      <div class="section-title">
+        <div>
+          <div class="small-label">SELEZIONA RACCHETTA</div>
+          <h2 id="selectedRacketTitle">Racchetta 1</h2>
+        </div>
+        <button id="editRacketsBtn" class="ghost compact" type="button">Rinomina</button>
+      </div>
+      <div id="racketSelector" class="racket-selector"></div>
+    </section>
+
     <section id="activeSection">
       <div class="section-title">
         <h2>Incordatura attiva</h2>
@@ -47,7 +58,7 @@
 
     <section>
       <div class="section-title">
-        <h2>Storico</h2>
+        <h2>Storico della racchetta</h2>
         <button id="exportBtn" class="ghost" type="button">Backup</button>
       </div>
       <div id="historyList" class="history-list"></div>
@@ -63,33 +74,32 @@
   <dialog id="stringingDialog">
     <form id="stringingForm" method="dialog" class="dialog-card">
       <div class="dialog-head">
-        <h2>Nuova incordatura</h2>
+        <div>
+          <div class="small-label" id="dialogRacketName">Racchetta 1</div>
+          <h2>Nuova incordatura</h2>
+        </div>
         <button class="icon-btn" value="cancel" aria-label="Chiudi">×</button>
       </div>
 
       <label>Data incordatura
-        <input id="stringDate" name="date" type="date" required />
-      </label>
-
-      <label>Racchetta
-        <input id="racket" name="racket" type="text" placeholder="Es. Wilson Blade 98" required />
+        <input id="stringDate" type="date" required />
       </label>
 
       <label>Corda
-        <input id="stringName" name="stringName" type="text" placeholder="Es. Luxilon Alu Power" required />
+        <input id="stringName" type="text" placeholder="Es. Luxilon Alu Power" required />
       </label>
 
       <div class="two-col">
         <label>Calibro
-          <input id="gauge" name="gauge" type="text" placeholder="1.25 mm" />
+          <input id="gauge" type="text" placeholder="1.25 mm" />
         </label>
         <label>Tensione
-          <input id="tension" name="tension" type="text" placeholder="22/21 kg" />
+          <input id="tension" type="text" placeholder="22/21 kg" />
         </label>
       </div>
 
       <label>Note
-        <textarea id="notes" name="notes" rows="3" placeholder="Facoltative"></textarea>
+        <textarea id="notes" rows="3" placeholder="Facoltative"></textarea>
       </label>
 
       <button class="primary wide" type="submit">Salva incordatura</button>
@@ -126,7 +136,7 @@
         <h2>Corda rotta</h2>
         <button class="icon-btn" value="cancel" aria-label="Chiudi">×</button>
       </div>
-      <p class="muted">Chiuderemo l'incordatura attiva e salveremo la durata totale.</p>
+      <p class="muted">Chiuderemo l'incordatura attiva di questa racchetta e salveremo la durata totale.</p>
       <label>Data rottura
         <input id="breakDate" type="date" required />
       </label>
@@ -134,11 +144,27 @@
     </form>
   </dialog>
 
+  <dialog id="racketsDialog">
+    <form id="racketsForm" method="dialog" class="dialog-card">
+      <div class="dialog-head">
+        <h2>Le mie racchette</h2>
+        <button class="icon-btn" value="cancel" aria-label="Chiudi">×</button>
+      </div>
+      <label>Racchetta 1
+        <input id="racketName1" type="text" maxlength="40" required />
+      </label>
+      <label>Racchetta 2
+        <input id="racketName2" type="text" maxlength="40" required />
+      </label>
+      <button class="primary wide" type="submit">Salva nomi</button>
+    </form>
+  </dialog>
+
   <template id="emptyActiveTemplate">
     <div class="empty-card">
       <div class="ball">🎾</div>
       <h3>Nessuna incordatura attiva</h3>
-      <p>Registra la prossima incordatura e inizia a contare le ore di gioco.</p>
+      <p>Registra la prossima incordatura per questa racchetta e inizia a contare le ore di gioco.</p>
     </div>
   </template>
 

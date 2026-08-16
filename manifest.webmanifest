@@ -1,7 +1,7 @@
 {
   "name": "StringLog Tennis",
   "short_name": "StringLog",
-  "description": "Registro delle incordature e delle ore di durata delle corde da tennis.",
+  "description": "Registro delle incordature e delle ore di durata delle corde da tennis, separato per racchetta.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

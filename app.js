@@ -1,22 +1,70 @@
-const STORAGE_KEY = "stringlog-data-v1";
+const STORAGE_KEY = "stringlog-data-v2";
+const OLD_STORAGE_KEY = "stringlog-data-v1";
 
 const state = loadData();
+let selectedRacketId = state.selectedRacketId || "r1";
 let deferredPrompt = null;
 
 const $ = (id) => document.getElementById(id);
 const today = () => new Date().toISOString().slice(0,10);
 
+function defaultState(){
+  return {
+    version: 2,
+    selectedRacketId: "r1",
+    rackets: [
+      { id: "r1", name: "Racchetta 1" },
+      { id: "r2", name: "Racchetta 2" }
+    ],
+    stringings: []
+  };
+}
+
 function loadData(){
   try{
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if(parsed && Array.isArray(parsed.stringings)) return parsed;
+    if(parsed && Array.isArray(parsed.rackets) && Array.isArray(parsed.stringings)){
+      return parsed;
+    }
   }catch(e){}
-  return { stringings: [] };
+
+  // Migrazione automatica dalla prima versione, se esiste.
+  try{
+    const old = JSON.parse(localStorage.getItem(OLD_STORAGE_KEY));
+    if(old && Array.isArray(old.stringings)){
+      const migrated = defaultState();
+      migrated.stringings = old.stringings.map(s => ({
+        ...s,
+        racketId: "r1"
+      }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+      return migrated;
+    }
+  }catch(e){}
+
+  return defaultState();
 }
 
 function saveData(){
+  state.selectedRacketId = selectedRacketId;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   render();
+}
+
+function currentRacket(){
+  return state.rackets.find(r => r.id === selectedRacketId) || state.rackets[0];
+}
+
+function stringingsFor(racketId){
+  return state.stringings.filter(s => s.racketId === racketId);
+}
+
+function activeStringing(racketId = selectedRacketId){
+  return state.stringings.find(s => s.racketId === racketId && !s.brokenDate) || null;
+}
+
+function totalHours(s){
+  return (s.sessions || []).reduce((sum, x) => sum + Number(x.hours || 0), 0);
 }
 
 function formatDate(iso){
@@ -35,14 +83,6 @@ function formatHours(hours){
   return `${m}m`;
 }
 
-function activeStringing(){
-  return state.stringings.find(s => !s.brokenDate) || null;
-}
-
-function totalHours(s){
-  return (s.sessions || []).reduce((sum, x) => sum + Number(x.hours || 0), 0);
-}
-
 function escapeHtml(value){
   return String(value ?? "").replace(/[&<>"']/g, ch => ({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
@@ -50,9 +90,37 @@ function escapeHtml(value){
 }
 
 function render(){
+  renderRackets();
   renderActive();
   renderHistory();
   renderStats();
+}
+
+function renderRackets(){
+  const racket = currentRacket();
+  $("selectedRacketTitle").textContent = racket.name;
+  $("dialogRacketName").textContent = racket.name;
+
+  $("racketSelector").innerHTML = state.rackets.map((r, index) => {
+    const active = activeStringing(r.id);
+    const status = active
+      ? `${escapeHtml(active.stringName)} · ${formatHours(totalHours(active))}`
+      : "Nessuna corda attiva";
+
+    return `
+      <button class="racket-tab ${r.id === selectedRacketId ? "active" : ""}" data-racket-id="${r.id}" type="button">
+        <span class="racket-number">RACCHETTA ${index + 1}</span>
+        <span class="racket-name">${escapeHtml(r.name)}</span>
+        <span class="racket-status">${status}</span>
+      </button>`;
+  }).join("");
+
+  document.querySelectorAll(".racket-tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      selectedRacketId = btn.dataset.racketId;
+      saveData();
+    });
+  });
 }
 
 function renderActive(){
@@ -76,7 +144,7 @@ function renderActive(){
       <div class="active-head">
         <div>
           <h3>${escapeHtml(current.stringName)}</h3>
-          <p>${escapeHtml(current.racket)}</p>
+          <p>${escapeHtml(currentRacket().name)}</p>
         </div>
         <div class="hours-ring">
           <strong>${hours < 100 ? hours.toFixed(hours % 1 ? 1 : 0) : Math.round(hours)}</strong>
@@ -108,11 +176,12 @@ function renderActive(){
 }
 
 function renderHistory(){
-  const history = state.stringings.filter(s => s.brokenDate)
+  const history = stringingsFor(selectedRacketId)
+    .filter(s => s.brokenDate)
     .sort((a,b) => b.brokenDate.localeCompare(a.brokenDate));
 
   if(!history.length){
-    $("historyList").innerHTML = `<div class="no-history">Le incordature concluse appariranno qui.</div>`;
+    $("historyList").innerHTML = `<div class="no-history">Le incordature concluse di questa racchetta appariranno qui.</div>`;
     return;
   }
 
@@ -121,7 +190,7 @@ function renderHistory(){
       <div class="history-top">
         <div>
           <h3>${escapeHtml(s.stringName)}</h3>
-          <p>${escapeHtml(s.racket)} · ${formatDate(s.date)} → ${formatDate(s.brokenDate)}</p>
+          <p>${formatDate(s.date)} → ${formatDate(s.brokenDate)}</p>
         </div>
         <div class="history-hours">${formatHours(totalHours(s))}</div>
       </div>
@@ -134,9 +203,10 @@ function renderHistory(){
 }
 
 function renderStats(){
-  const closed = state.stringings.filter(s => s.brokenDate);
+  const all = stringingsFor(selectedRacketId);
+  const closed = all.filter(s => s.brokenDate);
   const values = closed.map(totalHours);
-  $("statCount").textContent = state.stringings.length;
+  $("statCount").textContent = all.length;
   $("statAverage").textContent = values.length
     ? formatHours(values.reduce((a,b)=>a+b,0)/values.length) : "—";
   $("statBest").textContent = values.length ? formatHours(Math.max(...values)) : "—";
@@ -144,12 +214,12 @@ function renderStats(){
 
 function openStringingDialog(){
   if(activeStringing()){
-    alert("Hai già un'incordatura attiva. Segnala prima la rottura della corda corrente.");
+    alert("Questa racchetta ha già un'incordatura attiva. Segnala prima la rottura della corda corrente.");
     return;
   }
-  $("stringDate").value = today();
   $("stringingForm").reset();
   $("stringDate").value = today();
+  $("dialogRacketName").textContent = currentRacket().name;
   $("stringingDialog").showModal();
 }
 
@@ -173,8 +243,8 @@ $("stringingForm").addEventListener("submit", (e) => {
   e.preventDefault();
   const item = {
     id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+    racketId: selectedRacketId,
     date: $("stringDate").value,
-    racket: $("racket").value.trim(),
     stringName: $("stringName").value.trim(),
     gauge: $("gauge").value.trim(),
     tension: $("tension").value.trim(),
@@ -214,10 +284,27 @@ $("breakForm").addEventListener("submit", (e) => {
   saveData();
 });
 
+$("editRacketsBtn").addEventListener("click", () => {
+  $("racketName1").value = state.rackets[0].name;
+  $("racketName2").value = state.rackets[1].name;
+  $("racketsDialog").showModal();
+});
+
+$("racketsForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const n1 = $("racketName1").value.trim();
+  const n2 = $("racketName2").value.trim();
+  if(!n1 || !n2) return;
+  state.rackets[0].name = n1;
+  state.rackets[1].name = n2;
+  $("racketsDialog").close();
+  saveData();
+});
+
 $("exportBtn").addEventListener("click", () => {
   const payload = {
     app: "StringLog Tennis",
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     data: state
   };
@@ -241,8 +328,18 @@ $("importInput").addEventListener("change", async (event) => {
     const parsed = JSON.parse(await file.text());
     const incoming = parsed?.data?.stringings ? parsed.data : parsed;
     if(!incoming || !Array.isArray(incoming.stringings)) throw new Error("Formato non valido");
+
+    let normalized = incoming;
+    if(!Array.isArray(incoming.rackets)){
+      normalized = defaultState();
+      normalized.stringings = incoming.stringings.map(s => ({...s, racketId: "r1"}));
+    }
+
     if(!confirm("Ripristinare questo backup? I dati attuali verranno sostituiti.")) return;
-    state.stringings = incoming.stringings;
+
+    state.rackets = normalized.rackets;
+    state.stringings = normalized.stringings;
+    selectedRacketId = normalized.selectedRacketId || state.rackets[0].id;
     saveData();
     alert("Backup ripristinato.");
   }catch(e){
