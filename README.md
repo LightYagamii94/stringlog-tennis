@@ -1,6 +1,12 @@
-# StringLog Tennis v3
+# StringLog Tennis v4
 
 ## Novità
+- Nuova sezione **Test**, raggiungibile dalla barra in basso, con due schede: **Corde** e **Tensioni**
+- Ogni test registra la corda o la tensione provata, con calibro, racchetta e voto da 1 a 5 facoltativi
+- Diario di note datate per ogni test: si possono aggiungere, modificare ed eliminare
+- Test e note sono modificabili ed eliminabili, e inclusi nel backup JSON
+
+## Versione 3
 - Modifica dell'incordatura attiva
 - Eliminazione dell'incordatura attiva con conferma
 - Modifica delle incordature nello storico
@@ -11,4 +17,4 @@
 - Compatibilità con i dati delle versioni precedenti
 
 ## Dati
-I dati continuano a essere salvati nel browser con la stessa chiave della v2, così l'aggiornamento non azzera lo storico.
+I dati continuano a essere salvati nel browser con la stessa chiave della v2, così l'aggiornamento non azzera lo storico. I test sono salvati nello stesso archivio e i backup delle versioni precedenti restano ripristinabili.

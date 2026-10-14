@@ -1,4 +1,4 @@
-const CACHE = "stringlog-v3";
+const CACHE = "stringlog-v4";
 const ASSETS = [
   "./",
   "./index.html",
