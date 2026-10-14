@@ -22,54 +22,81 @@
   </header>
 
   <main class="container">
-    <section class="racket-section">
-      <div class="section-title">
-        <div>
-          <div class="small-label">SELEZIONA RACCHETTA</div>
-          <h2 id="selectedRacketTitle">Racchetta 1</h2>
+    <div id="viewRackets" class="view">
+      <section class="racket-section">
+        <div class="section-title">
+          <div>
+            <div class="small-label">SELEZIONA RACCHETTA</div>
+            <h2 id="selectedRacketTitle">Racchetta 1</h2>
+          </div>
+          <button id="editRacketsBtn" class="ghost compact" type="button">Rinomina</button>
         </div>
-        <button id="editRacketsBtn" class="ghost compact" type="button">Rinomina</button>
-      </div>
-      <div id="racketSelector" class="racket-selector"></div>
-    </section>
+        <div id="racketSelector" class="racket-selector"></div>
+      </section>
 
-    <section id="activeSection">
-      <div class="section-title">
-        <h2>Incordatura attiva</h2>
-        <button id="newStringingBtn" class="primary" type="button">+ Nuova</button>
-      </div>
-      <div id="activeCard"></div>
-    </section>
+      <section id="activeSection">
+        <div class="section-title">
+          <h2>Incordatura attiva</h2>
+          <button id="newStringingBtn" class="primary" type="button">+ Nuova</button>
+        </div>
+        <div id="activeCard"></div>
+      </section>
 
-    <section class="stats-grid">
-      <article class="stat">
-        <span>Incordature</span>
-        <strong id="statCount">0</strong>
-      </article>
-      <article class="stat">
-        <span>Durata media</span>
-        <strong id="statAverage">—</strong>
-      </article>
-      <article class="stat">
-        <span>Record</span>
-        <strong id="statBest">—</strong>
-      </article>
-    </section>
+      <section class="stats-grid">
+        <article class="stat">
+          <span>Incordature</span>
+          <strong id="statCount">0</strong>
+        </article>
+        <article class="stat">
+          <span>Durata media</span>
+          <strong id="statAverage">—</strong>
+        </article>
+        <article class="stat">
+          <span>Record</span>
+          <strong id="statBest">—</strong>
+        </article>
+      </section>
 
-    <section>
-      <div class="section-title">
-        <h2>Storico della racchetta</h2>
-        <button id="exportBtn" class="ghost" type="button">Backup</button>
-      </div>
-      <div id="historyList" class="history-list"></div>
-    </section>
+      <section>
+        <div class="section-title">
+          <h2>Storico della racchetta</h2>
+          <button id="exportBtn" class="ghost" type="button">Backup</button>
+        </div>
+        <div id="historyList" class="history-list"></div>
+      </section>
 
-    <section class="data-tools">
-      <button id="importBtn" class="ghost wide" type="button">Ripristina backup</button>
-      <input id="importInput" type="file" accept="application/json" hidden />
-      <p>I dati sono salvati sul dispositivo. Crea periodicamente un backup JSON per conservarli anche in caso di cambio telefono.</p>
-    </section>
+      <section class="data-tools">
+        <button id="importBtn" class="ghost wide" type="button">Ripristina backup</button>
+        <input id="importInput" type="file" accept="application/json" hidden />
+        <p>I dati sono salvati sul dispositivo. Crea periodicamente un backup JSON per conservarli anche in caso di cambio telefono.</p>
+      </section>
+    </div>
+
+    <div id="viewTests" class="view hidden">
+      <section>
+        <div class="section-title">
+          <div>
+            <div class="small-label">DIARIO DEI TEST</div>
+            <h2>Test</h2>
+          </div>
+          <button id="newTestBtn" class="primary" type="button">+ Nuovo test</button>
+        </div>
+
+        <div class="segmented" role="tablist">
+          <button class="segment" data-test-type="string" role="tab" type="button">Corde <span id="countString" class="count">0</span></button>
+          <button class="segment" data-test-type="tension" role="tab" type="button">Tensioni <span id="countTension" class="count">0</span></button>
+        </div>
+        <p id="testIntro" class="muted test-intro"></p>
+
+        <div id="testList" class="history-list"></div>
+      </section>
+    </div>
   </main>
+
+  <nav class="bottom-nav">
+    <button class="nav-btn" data-view="rackets" type="button"><span class="nav-icon">🎾</span>Racchette</button>
+    <button class="nav-btn" data-view="tests" type="button"><span class="nav-icon">🧪</span>Test</button>
+  </nav>
 
   <!-- Nuova incordatura -->
   <dialog id="stringingDialog">
@@ -232,6 +259,86 @@
         <input id="racketName2" type="text" maxlength="40" required />
       </label>
       <button class="primary wide" type="submit">Salva nomi</button>
+    </form>
+  </dialog>
+
+  <!-- Nuovo / modifica test -->
+  <dialog id="testDialog">
+    <form id="testForm" method="dialog" class="dialog-card">
+      <div class="dialog-head">
+        <div>
+          <div class="small-label" id="testDialogLabel">TEST CORDA</div>
+          <h2 id="testDialogTitle">Nuovo test</h2>
+        </div>
+        <button class="icon-btn" value="cancel" aria-label="Chiudi">×</button>
+      </div>
+
+      <input id="testId" type="hidden" />
+      <input id="testType" type="hidden" />
+
+      <div class="test-fields">
+        <label id="testStringWrap"><span id="testStringLabel">Corda</span>
+          <input id="testString" type="text" placeholder="Es. Luxilon Alu Power" />
+        </label>
+        <label id="testTensionWrap"><span id="testTensionLabel">Tensione</span>
+          <input id="testTension" type="text" placeholder="22/21 kg" />
+        </label>
+        <label>Calibro
+          <input id="testGauge" type="text" placeholder="1.25 mm" />
+        </label>
+      </div>
+
+      <div class="two-col">
+        <label>Inizio test
+          <input id="testDate" type="date" required />
+        </label>
+        <label>Racchetta
+          <select id="testRacket"></select>
+        </label>
+      </div>
+
+      <div class="field">Voto <small class="muted">(facoltativo)</small>
+        <div id="ratingInput" class="rating-input">
+          <button class="star" data-value="1" type="button" aria-label="1 stella">★</button>
+          <button class="star" data-value="2" type="button" aria-label="2 stelle">★</button>
+          <button class="star" data-value="3" type="button" aria-label="3 stelle">★</button>
+          <button class="star" data-value="4" type="button" aria-label="4 stelle">★</button>
+          <button class="star" data-value="5" type="button" aria-label="5 stelle">★</button>
+        </div>
+        <input id="testRating" type="hidden" value="0" />
+      </div>
+
+      <label id="testFirstNoteWrap">Prima nota
+        <textarea id="testFirstNote" rows="3" placeholder="Facoltativa: prime sensazioni, controllo, potenza, comfort..."></textarea>
+      </label>
+
+      <button class="primary wide" type="submit">Salva test</button>
+    </form>
+  </dialog>
+
+  <!-- Nuova / modifica nota del test -->
+  <dialog id="noteDialog">
+    <form id="noteForm" method="dialog" class="dialog-card">
+      <div class="dialog-head">
+        <div>
+          <div class="small-label" id="noteDialogTestName">TEST</div>
+          <h2 id="noteDialogTitle">Nuova nota</h2>
+        </div>
+        <button class="icon-btn" value="cancel" aria-label="Chiudi">×</button>
+      </div>
+
+      <input id="noteTestId" type="hidden" />
+      <input id="noteIndex" type="hidden" />
+
+      <label>Data
+        <input id="noteDate" type="date" required />
+      </label>
+
+      <label>Nota
+        <textarea id="noteText" rows="5" placeholder="Sensazioni, controllo, potenza, comfort, tenuta della tensione..." required></textarea>
+      </label>
+
+      <button class="primary wide" type="submit">Salva nota</button>
     </form>
   </dialog>
 

@@ -3,26 +3,45 @@ const OLD_STORAGE_KEY = "stringlog-data-v1";
 
 const state = loadData();
 let selectedRacketId = state.selectedRacketId || "r1";
+let selectedView = state.selectedView === "tests" ? "tests" : "rackets";
+let selectedTestType = state.selectedTestType === "tension" ? "tension" : "string";
 let deferredPrompt = null;
 
 const $ = (id) => document.getElementById(id);
 const today = () => new Date().toISOString().slice(0,10);
+const newId = () => crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+
+const TEST_TYPES = {
+  string: {
+    label: "TEST CORDA",
+    question: "Che corda stai testando?",
+    intro: "Prova corde diverse e annota le sensazioni sessione dopo sessione.",
+    empty: "Nessun test di corde"
+  },
+  tension: {
+    label: "TEST TENSIONE",
+    question: "Che tensione stai testando?",
+    intro: "Prova tensioni diverse e annota come cambia la risposta della racchetta.",
+    empty: "Nessun test di tensioni"
+  }
+};
 
 function defaultState(){
   return {
-    version: 3,
+    version: 4,
     selectedRacketId: "r1",
     rackets: [
       { id: "r1", name: "Racchetta 1" },
       { id: "r2", name: "Racchetta 2" }
     ],
-    stringings: []
+    stringings: [],
+    tests: []
   };
 }
 
 function normalizeState(data){
   const out = data || defaultState();
-  out.version = 3;
+  out.version = 4;
   if(!Array.isArray(out.rackets) || out.rackets.length < 2){
     out.rackets = defaultState().rackets;
   }
@@ -34,6 +53,12 @@ function normalizeState(data){
     s.sessions.forEach(sess => {
       if(!("notes" in sess)) sess.notes = "";
     });
+  });
+  if(!Array.isArray(out.tests)) out.tests = [];
+  out.tests.forEach(t => {
+    if(t.type !== "tension") t.type = "string";
+    if(!Array.isArray(t.entries)) t.entries = [];
+    t.rating = Number(t.rating) || 0;
   });
   return out;
 }
@@ -64,8 +89,10 @@ function loadData(){
 }
 
 function saveData(){
-  state.version = 3;
+  state.version = 4;
   state.selectedRacketId = selectedRacketId;
+  state.selectedView = selectedView;
+  state.selectedTestType = selectedTestType;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   render();
 }
@@ -84,6 +111,18 @@ function activeStringing(racketId = selectedRacketId){
 
 function findStringing(id){
   return state.stringings.find(s => s.id === id) || null;
+}
+
+function findTest(id){
+  return state.tests.find(t => t.id === id) || null;
+}
+
+function racketName(id){
+  return state.rackets.find(r => r.id === id)?.name || "";
+}
+
+function testTitle(t){
+  return (t.type === "tension" ? t.tension : t.stringName) || "—";
 }
 
 function totalHours(s){
@@ -122,10 +161,20 @@ function escapeHtml(value){
 }
 
 function render(){
+  renderView();
   renderRackets();
   renderActive();
   renderHistory();
   renderStats();
+  renderTests();
+}
+
+function renderView(){
+  $("viewRackets").classList.toggle("hidden", selectedView !== "rackets");
+  $("viewTests").classList.toggle("hidden", selectedView !== "tests");
+  document.querySelectorAll(".nav-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.view === selectedView);
+  });
 }
 
 function renderRackets(){
@@ -303,6 +352,107 @@ function renderStats(){
   $("statBest").textContent = values.length ? formatHours(Math.max(...values)) : "—";
 }
 
+function ratingHtml(rating){
+  if(!rating) return "";
+  return `<div class="rating" aria-label="Voto ${rating} su 5">${"★".repeat(rating)}<span class="off">${"★".repeat(5 - rating)}</span></div>`;
+}
+
+function noteHtml(test, entry, index){
+  return `
+    <div class="session note-entry">
+      <div class="session-main">
+        <span class="note-date">${formatDate(entry.date)}</span>
+        <p class="note-text">${escapeHtml(entry.text)}</p>
+      </div>
+      <div></div>
+      <div class="session-actions">
+        <button class="mini-btn edit-note" type="button"
+          data-test-id="${test.id}" data-note-index="${index}">Modifica</button>
+        <button class="mini-btn delete delete-note" type="button"
+          data-test-id="${test.id}" data-note-index="${index}">Elimina</button>
+      </div>
+    </div>`;
+}
+
+function testHtml(t){
+  const secondary = t.type === "tension"
+    ? t.stringName
+    : (t.tension ? `Tensione ${t.tension}` : "");
+  const racket = racketName(t.racketId);
+  const notes = t.entries.map((entry, index) => ({...entry, _index:index}))
+    .sort((a,b) => (b.date || "").localeCompare(a.date || ""))
+    .map(entry => noteHtml(t, entry, entry._index))
+    .join("");
+
+  return `
+    <article class="history-item test-item">
+      <div class="history-top">
+        <div>
+          <h3>${escapeHtml(testTitle(t))}</h3>
+          <p>${secondary ? `${escapeHtml(secondary)} · ` : ""}dal ${formatDate(t.date)}</p>
+        </div>
+        ${ratingHtml(t.rating)}
+      </div>
+      <div class="history-meta">
+        ${t.gauge ? `<span class="chip">${escapeHtml(t.gauge)}</span>` : ""}
+        ${racket ? `<span class="chip">${escapeHtml(racket)}</span>` : ""}
+        <span class="chip">${t.entries.length} ${t.entries.length === 1 ? "nota" : "note"}</span>
+      </div>
+      <div class="history-actions">
+        <button class="mini-btn add-note" data-id="${t.id}" type="button">+ Nota</button>
+        <button class="mini-btn edit-test" data-id="${t.id}" type="button">Modifica</button>
+        <button class="mini-btn delete delete-test" data-id="${t.id}" type="button">Elimina</button>
+      </div>
+      ${t.entries.length ? `<div class="test-notes">${notes}</div>` : ""}
+    </article>`;
+}
+
+function renderTests(){
+  const type = TEST_TYPES[selectedTestType];
+  document.querySelectorAll(".segment").forEach(btn => {
+    const active = btn.dataset.testType === selectedTestType;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-selected", String(active));
+  });
+  $("countString").textContent = state.tests.filter(t => t.type === "string").length;
+  $("countTension").textContent = state.tests.filter(t => t.type === "tension").length;
+  $("testIntro").textContent = type.intro;
+
+  const tests = state.tests
+    .filter(t => t.type === selectedTestType)
+    .sort((a,b) => (b.date || "").localeCompare(a.date || ""));
+
+  if(!tests.length){
+    $("testList").innerHTML = `
+      <div class="empty-card">
+        <div class="ball">🧪</div>
+        <h3>${type.empty}</h3>
+        <p>Inizia il primo test: potrai aggiungere note dopo ogni sessione e modificarle quando vuoi.</p>
+        <button id="emptyNewTestBtn" class="primary empty-action" type="button">+ Inizia un test</button>
+      </div>`;
+    $("emptyNewTestBtn").addEventListener("click", () => openTestDialog());
+    return;
+  }
+
+  $("testList").innerHTML = tests.map(testHtml).join("");
+
+  document.querySelectorAll(".add-note").forEach(btn => {
+    btn.addEventListener("click", () => openNoteDialog(btn.dataset.id));
+  });
+  document.querySelectorAll(".edit-test").forEach(btn => {
+    btn.addEventListener("click", () => openTestDialog(btn.dataset.id));
+  });
+  document.querySelectorAll(".delete-test").forEach(btn => {
+    btn.addEventListener("click", () => deleteTest(btn.dataset.id));
+  });
+  document.querySelectorAll(".edit-note").forEach(btn => {
+    btn.addEventListener("click", () => openNoteDialog(btn.dataset.testId, Number(btn.dataset.noteIndex)));
+  });
+  document.querySelectorAll(".delete-note").forEach(btn => {
+    btn.addEventListener("click", () => deleteNote(btn.dataset.testId, Number(btn.dataset.noteIndex)));
+  });
+}
+
 function openStringingDialog(){
   if(activeStringing()){
     alert("Questa racchetta ha già un'incordatura attiva. Segnala prima la rottura della corda corrente.");
@@ -390,12 +540,112 @@ function deleteSession(stringingId, index){
   saveData();
 }
 
+function setRatingInput(value){
+  $("testRating").value = String(value);
+  document.querySelectorAll("#ratingInput .star").forEach(star => {
+    star.classList.toggle("on", Number(star.dataset.value) <= value);
+  });
+}
+
+function setTestLayout(type){
+  const isString = type === "string";
+  $("testStringWrap").classList.toggle("main-field", isString);
+  $("testTensionWrap").classList.toggle("main-field", !isString);
+  $("testStringLabel").textContent = isString ? TEST_TYPES.string.question : "Corda";
+  $("testTensionLabel").textContent = isString ? "Tensione" : TEST_TYPES.tension.question;
+  $("testString").required = isString;
+  $("testTension").required = !isString;
+}
+
+function openTestDialog(id){
+  const t = id ? findTest(id) : null;
+  if(id && !t) return;
+  const type = t ? t.type : selectedTestType;
+
+  $("testForm").reset();
+  $("testId").value = t ? t.id : "";
+  $("testType").value = type;
+  $("testRacket").innerHTML = `<option value="">Nessuna</option>` +
+    state.rackets.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join("");
+
+  if(t){
+    $("testString").value = t.stringName || "";
+    $("testTension").value = t.tension || "";
+    $("testGauge").value = t.gauge || "";
+    $("testDate").value = t.date || today();
+    $("testRacket").value = t.racketId || "";
+  }else{
+    // Parte dall'incordatura attiva della racchetta selezionata, se c'è
+    const active = activeStringing();
+    $("testString").value = active?.stringName || "";
+    $("testTension").value = active?.tension || "";
+    $("testGauge").value = active?.gauge || "";
+    $("testDate").value = today();
+    $("testRacket").value = selectedRacketId;
+  }
+
+  setRatingInput(t ? t.rating : 0);
+  setTestLayout(type);
+  $("testDialogLabel").textContent = TEST_TYPES[type].label;
+  $("testDialogTitle").textContent = t ? "Modifica test" : "Nuovo test";
+  $("testFirstNoteWrap").classList.toggle("hidden", Boolean(t));
+  $("testDialog").showModal();
+}
+
+function openNoteDialog(testId, index = null){
+  const t = findTest(testId);
+  const entry = index == null ? null : t?.entries?.[index];
+  if(!t || (index != null && !entry)) return;
+
+  $("noteForm").reset();
+  $("noteTestId").value = t.id;
+  $("noteIndex").value = index == null ? "" : String(index);
+  $("noteDate").value = entry ? entry.date || today() : today();
+  $("noteText").value = entry ? entry.text : "";
+  $("noteDialogTestName").textContent = `${TEST_TYPES[t.type].label} · ${testTitle(t)}`;
+  $("noteDialogTitle").textContent = entry ? "Modifica nota" : "Nuova nota";
+  $("noteDialog").showModal();
+}
+
+function deleteTest(id){
+  const t = findTest(id);
+  if(!t) return;
+
+  if(!confirm(`Eliminare il test "${testTitle(t)}"? Verranno eliminate anche tutte le note associate. Questa operazione non può essere annullata.`)){
+    return;
+  }
+
+  state.tests.splice(state.tests.indexOf(t), 1);
+  saveData();
+}
+
+function deleteNote(testId, index){
+  const t = findTest(testId);
+  const entry = t?.entries?.[index];
+  if(!t || !entry) return;
+
+  if(!confirm(`Eliminare la nota del ${formatDate(entry.date)}?`)){
+    return;
+  }
+
+  t.entries.splice(index, 1);
+  saveData();
+}
+
+// La × chiude il dialog senza inviare il modulo (altrimenti salverebbe i dati)
+document.querySelectorAll("dialog .icon-btn").forEach(btn => {
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    btn.closest("dialog").close();
+  });
+});
+
 $("newStringingBtn").addEventListener("click", openStringingDialog);
 
 $("stringingForm").addEventListener("submit", (e) => {
   e.preventDefault();
   const item = {
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+    id: newId(),
     racketId: selectedRacketId,
     date: $("stringDate").value,
     stringName: $("stringName").value.trim(),
@@ -498,10 +748,88 @@ $("racketsForm").addEventListener("submit", (e) => {
   saveData();
 });
 
+document.querySelectorAll(".nav-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    selectedView = btn.dataset.view;
+    saveData();
+    window.scrollTo(0, 0);
+  });
+});
+
+document.querySelectorAll(".segment").forEach(btn => {
+  btn.addEventListener("click", () => {
+    selectedTestType = btn.dataset.testType;
+    saveData();
+  });
+});
+
+$("newTestBtn").addEventListener("click", () => openTestDialog());
+
+document.querySelectorAll("#ratingInput .star").forEach(star => {
+  star.addEventListener("click", () => {
+    const value = Number(star.dataset.value);
+    // Un secondo tocco sulla stessa stella toglie il voto
+    setRatingInput(Number($("testRating").value) === value ? 0 : value);
+  });
+});
+
+$("testForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+
+  const data = {
+    type: $("testType").value === "tension" ? "tension" : "string",
+    date: $("testDate").value,
+    stringName: $("testString").value.trim(),
+    tension: $("testTension").value.trim(),
+    gauge: $("testGauge").value.trim(),
+    racketId: $("testRacket").value,
+    rating: Number($("testRating").value) || 0
+  };
+
+  const t = findTest($("testId").value);
+  if(t){
+    Object.assign(t, data);
+  }else{
+    const firstNote = $("testFirstNote").value.trim();
+    state.tests.unshift({
+      id: newId(),
+      ...data,
+      entries: firstNote ? [{date: data.date, text: firstNote}] : []
+    });
+  }
+
+  $("testDialog").close();
+  saveData();
+});
+
+$("noteForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+
+  const t = findTest($("noteTestId").value);
+  if(!t) return;
+
+  const text = $("noteText").value.trim();
+  if(!text){
+    alert("Scrivi il testo della nota.");
+    return;
+  }
+
+  const entry = {date: $("noteDate").value, text};
+  const index = $("noteIndex").value;
+  if(index === ""){
+    t.entries.push(entry);
+  }else if(t.entries[Number(index)]){
+    t.entries[Number(index)] = entry;
+  }
+
+  $("noteDialog").close();
+  saveData();
+});
+
 $("exportBtn").addEventListener("click", () => {
   const payload = {
     app: "StringLog Tennis",
-    version: 3,
+    version: 4,
     exportedAt: new Date().toISOString(),
     data: state
   };
@@ -542,6 +870,7 @@ $("importInput").addEventListener("change", async (event) => {
 
     state.rackets = normalized.rackets;
     state.stringings = normalized.stringings;
+    state.tests = normalized.tests;
     selectedRacketId = normalized.selectedRacketId || state.rackets[0].id;
     saveData();
     alert("Backup ripristinato.");
