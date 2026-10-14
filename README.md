@@ -5,6 +5,7 @@
 - Ogni test registra la corda o la tensione provata, con calibro, racchetta e voto da 1 a 5 facoltativi
 - Diario di note datate per ogni test: si possono aggiungere, modificare ed eliminare
 - Test e note sono modificabili ed eliminabili, e inclusi nel backup JSON
+- Sul telefono il tasto **Backup** apre il menu di condivisione: scegliendo **Drive** il backup viene salvato su Google Drive. Dove la condivisione non è disponibile (ad esempio su computer) il file viene scaricato come prima
 
 ## Versione 3
 - Modifica dell'incordatura attiva

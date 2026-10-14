@@ -826,14 +826,28 @@ $("noteForm").addEventListener("submit", (e) => {
   saveData();
 });
 
-$("exportBtn").addEventListener("click", () => {
+$("exportBtn").addEventListener("click", async () => {
   const payload = {
     app: "StringLog Tennis",
     version: 4,
     exportedAt: new Date().toISOString(),
     data: state
   };
-  const blob = new Blob([JSON.stringify(payload,null,2)], {type:"application/json"});
+  const json = JSON.stringify(payload,null,2);
+
+  // Sul telefono apre il menu di condivisione, da cui si può scegliere Google Drive.
+  // Il file è .txt perché Chrome non permette di condividere file .json; il contenuto resta JSON.
+  const file = new File([json], `stringlog-backup-${today()}.txt`, {type:"text/plain"});
+  if(navigator.canShare?.({files:[file]})){
+    try{
+      await navigator.share({files:[file], title:"Backup StringLog"});
+      return;
+    }catch(e){
+      if(e.name === "AbortError") return;
+    }
+  }
+
+  const blob = new Blob([json], {type:"application/json"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
